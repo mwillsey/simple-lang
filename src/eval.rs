@@ -105,9 +105,27 @@ impl RcExpr {
 
                 closure.body.eval(&closed_env)?
             }
+            Expr::Block(block) => {
+                let mut env = env.clone();
+                for stmt in &block.stmts {
+                    stmt.eval(&mut env)?;
+                }
+                block.expr.eval(&env)?
+            }
         };
 
         Ok(val)
+    }
+}
+
+impl Stmt {
+    pub fn eval(&self, env: &mut Env) -> Result<(), String> {
+        match self {
+            Stmt::Let { pat, expr } => {
+                let val = expr.eval(env)?;
+                pat.bind(val, env)
+            }
+        }
     }
 }
 

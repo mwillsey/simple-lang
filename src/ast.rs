@@ -1,7 +1,6 @@
 use std::rc::Rc;
 
-use im::{HashMap as Map, HashSet as Set};
-use std::collections::HashSet;
+use im::HashSet as Set;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
@@ -79,12 +78,23 @@ pub enum Expr {
         e1: RcExpr,
         e2: RcExpr,
     },
-    // Block(Scope<Nest<(RcPattern, Embed<RcExpr>)>, RcExpr>),
+    Block(Block),
     Lambda {
         params: Vec<(RcPattern, Option<RcType>)>,
         body: RcExpr,
     },
     Call(RcExpr, Vec<RcExpr>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Block {
+    pub stmts: Vec<Stmt>,
+    pub expr: RcExpr,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Stmt {
+    Let { pat: RcPattern, expr: RcExpr },
 }
 
 pub mod constructor {
@@ -185,6 +195,28 @@ impl RcExpr {
                 let fun_fv = fun.free_vars_not_bound(bound);
                 let args_fv = Set::unions(args.iter().map(|a| a.free_vars_not_bound(bound)));
                 fun_fv + args_fv
+            }
+            Expr::Block(block) => {
+                let mut bound = bound.clone();
+                let stmts_free = Set::unions(
+                    block
+                        .stmts
+                        .iter()
+                        .map(|s| s.free_vars_not_bound(&mut bound)),
+                );
+                stmts_free + block.expr.free_vars_not_bound(&bound)
+            }
+        }
+    }
+}
+
+impl Stmt {
+    fn free_vars_not_bound(&self, bound: &mut Set<Name>) -> Set<Name> {
+        match self {
+            Stmt::Let { pat, expr } => {
+                let free = expr.free_vars();
+                pat.add_bound_vars(bound);
+                free
             }
         }
     }
