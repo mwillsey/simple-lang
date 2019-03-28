@@ -40,6 +40,7 @@ pub enum Pattern {
     // Ann(RcPattern, RcType),
     Literal(Literal),
     Binder(Name),
+    Tuple(Vec<RcPattern>),
     // Record(Vec<(String, RcPattern)>),
     // Tag(String, RcPattern),
 }
@@ -76,7 +77,7 @@ pub enum Expr {
     Block(Block),
     Lambda { params: Vec<RcPattern>, body: Block },
     Call { func: RcExpr, args: Vec<RcExpr> },
-    Unit,
+    Tuple(Vec<RcExpr>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -136,7 +137,7 @@ impl RcExpr {
                 func_fv + args_fv
             }
             Expr::Block(block) => block.free_vars_not_bound(bound),
-            Expr::Unit => Set::new(),
+            Expr::Tuple(exprs) => Set::unions(exprs.iter().map(|e| e.free_vars_not_bound(bound))),
         }
     }
 }
@@ -168,6 +169,11 @@ impl RcPattern {
             Pattern::Literal(_) => (),
             Pattern::Binder(name) => {
                 bound.insert(name.clone());
+            }
+            Pattern::Tuple(pats) => {
+                for pat in pats {
+                    pat.add_bound_vars(bound)
+                }
             }
         }
     }

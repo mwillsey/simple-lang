@@ -61,13 +61,27 @@ ExprN: RcExpr = {
     "(" <Expr> ")",
     Name => Expr::Var(<>).into(),
     Literal => Expr::Literal(<>).into(),
-    // "()" => Expr::Unit,
+    Tuple<Expr> => Expr::Tuple(<>).into(),
     <Block> => Expr::Block(<>).into(),
     "|" <params:Comma<Pattern>> "|" <body: Block> => Expr::Lambda{<>}.into()
 }
 
 Comma<T>: Vec<T> = {
     <v:(<T> ",")*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            let mut v = v;
+            v.push(e);
+            v
+        }
+    }
+};
+
+Tuple<T>: Vec<T> = {
+    // empty tuple
+    "(" ")" => vec![],
+    // one or more, but "(x)" is not allowed, but use "(x,")
+    "(" <v:(<T> ",")+> <e:T?> ")" => match e {
         None => v,
         Some(e) => {
             let mut v = v;
@@ -94,6 +108,7 @@ pub Pattern: RcPattern = {
     "_" => Pattern::Wildcard.into(),
     Name => Pattern::Binder(<>).into(),
     Literal => Pattern::Literal(<>).into(),
+    Tuple<Pattern> => Pattern::Tuple(<>).into(),
 }
 
 pub Stmt: Stmt = {
@@ -114,5 +129,11 @@ pub Stmt: Stmt = {
 // }
 
 pub Block: Block = {
-    "{" <stmts:Stmt*> <expr:Expr?> "}" => Block {stmts, expr: expr.unwrap_or_else(|| Expr::Unit.into())}
+    "{" <stmts:Stmt*> <expr:Expr?> "}" => {
+        let expr = match expr {
+            Some(e) => e,
+            None => Expr::Tuple(vec![]).into()
+        };
+        Block {stmts, expr}
+    }
 }

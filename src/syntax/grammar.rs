@@ -58,5 +58,8 @@ mod tests {
             }
             .into()
         );
+
+        assert_eq!(parse_expr("(x)"), var("x"));
+        assert_eq!(parse_expr("(x,)"), Tuple(vec![var("x")]).into());
     }
 }

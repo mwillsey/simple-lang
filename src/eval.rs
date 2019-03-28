@@ -6,8 +6,8 @@ type Env = im::HashMap<Name, Value>;
 pub enum Value {
     Int(i32),
     Float(f64),
-    Unit,
     Closure(Closure),
+    Tuple(Vec<Value>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -28,14 +28,27 @@ impl Value {
     fn to_float(self) -> Result<f64, String> {
         match self {
             Value::Float(f) => Ok(f),
-            _ => Err("not an float".into()),
+            _ => Err("not a float".into()),
         }
     }
 
     fn to_closure(self) -> Result<Closure, String> {
         match self {
             Value::Closure(c) => Ok(c),
-            _ => Err("not an closure".into()),
+            _ => Err("not a closure".into()),
+        }
+    }
+
+    fn to_tuple(self, n: usize) -> Result<Vec<Value>, String> {
+        match self {
+            Value::Tuple(vs) => {
+                if vs.len() == n {
+                    Ok(vs)
+                } else {
+                    Err("wrong size tuple".into())
+                }
+            }
+            _ => Err("not a tuple".into()),
         }
     }
 }
@@ -107,7 +120,13 @@ impl RcExpr {
                 closure.body.eval(&closed_env)?
             }
             Expr::Block(block) => block.eval(env)?,
-            Expr::Unit => Value::Unit,
+            Expr::Tuple(exprs) => {
+                let mut vals = Vec::with_capacity(exprs.len());
+                for e in exprs {
+                    vals.push(e.eval(env)?);
+                }
+                Value::Tuple(vals)
+            }
         };
 
         Ok(val)
@@ -159,6 +178,13 @@ impl RcPattern {
                 env.insert(name.clone(), val);
                 Ok(())
             }
+            Pattern::Tuple(pats) => {
+                let vals = val.to_tuple(pats.len())?;
+                for (pat, val) in pats.iter().zip(vals) {
+                    pat.bind(val, env)?;
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -167,6 +193,23 @@ impl RcPattern {
 mod tests {
     use super::*;
     use crate::syntax::grammar::{parse_expr, parse_pattern};
+
+    fn parse_value(s: &str) -> Value {
+        let expr = parse_expr(s);
+        let env = Env::new();
+        expr.eval(&env).unwrap()
+    }
+
+    fn mk_env(names_and_vals: &[(&str, &str)]) -> Env {
+        names_and_vals
+            .iter()
+            .map(|&(n, v)| {
+                let name: Name = n.into();
+                let val = parse_value(v);
+                (name, val)
+            })
+            .collect()
+    }
 
     #[test]
     fn test_simple_eval() {
@@ -177,6 +220,18 @@ mod tests {
 
         let e = parse_expr("(|x| {x * x})(3)");
         assert_eq!(e.eval(&empty), Ok(Value::Int(9)));
+
+        let e = parse_expr("(1 + 1)");
+        assert_eq!(e.eval(&empty), Ok(Value::Int(2)));
+
+        let e = parse_expr("(1 + 1,)");
+        assert_eq!(e.eval(&empty), Ok(Value::Tuple(vec![Value::Int(2)])));
+
+        let e = parse_expr("(1 + 1, 1.0 + 1.0)");
+        assert_eq!(
+            e.eval(&empty),
+            Ok(Value::Tuple(vec![Value::Int(2), Value::Float(2.0)]))
+        );
     }
 
     #[test]
@@ -194,6 +249,13 @@ mod tests {
         let pat = parse_pattern("6");
         let val = Value::Int(5);
         assert!(bind(pat.into(), val).is_err());
+
+        let pat = parse_pattern("(x, 2, y, _)");
+        let val = parse_value("(1, 2, 3, 4)");
+        assert_eq!(
+            bind(pat.into(), val),
+            Ok(mk_env(&[("x", "1"), ("y", "3"),]))
+        );
     }
 
 }
