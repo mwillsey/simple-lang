@@ -1,0 +1,118 @@
+use std::str::FromStr;
+use crate::syntax::ast::*;
+
+grammar;
+
+pub Name: Name = {
+    // [[:word:]] = word characters ([0-9A-Za-z_])
+    r"[[:alpha:]][[:word:]]*" => <>.into(),
+}
+
+pub Int: i32 = {
+    r"0|-?[1-9][0-9]*" => i32::from_str(<>).unwrap()
+}
+
+pub Float: f64 = {
+    r"(0|-?[1-9][0-9]*)\.[0-9]+" => f64::from_str(<>).unwrap()
+}
+
+pub Literal: Literal = {
+    Int => Literal::Int(<>.into()),
+    Float => Literal::Float(<>.into()),
+}
+
+// Expressions
+
+pub Expr: RcExpr = {
+    Expr1,
+}
+
+Expr1: RcExpr = {
+    <e1:Expr1> <bop:Bop1> <e2:Expr2> => Expr::Bop {<>}.into(),
+    Expr2,
+}
+
+Bop1: Bop = {
+    "+" => Bop::Add,
+    "-" => Bop::Sub,
+}
+
+Expr2: RcExpr = {
+    <e1:Expr2> <bop:Bop2> <e2:Expr3> => Expr::Bop {<>}.into(),
+    Expr3,
+}
+
+Bop2: Bop = {
+    "*" => Bop::Mul,
+    "/" => Bop::Div,
+}
+
+Expr3: RcExpr = {
+    // tokenizer aggressively considers unit a token.
+    <func:Expr3> "()" => Expr::Call {
+        func,
+        args: Vec::new(),
+    }.into(),
+    <func:Expr3> "(" <args:Comma<Expr>> ")" => Expr::Call{<>}.into(),
+    <ExprN>
+}
+
+ExprN: RcExpr = {
+    "(" <Expr> ")",
+    Name => Expr::Var(<>).into(),
+    Literal => Expr::Literal(<>).into(),
+    // "()" => Expr::Unit,
+    <Block> => Expr::Block(<>).into(),
+    "|" <params:Comma<Pattern>> "|" <body: Block> => Expr::Lambda{<>}.into()
+}
+
+Comma<T>: Vec<T> = {
+    <v:(<T> ",")*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            let mut v = v;
+            v.push(e);
+            v
+        }
+    }
+};
+
+// other stuff
+
+
+// pub Type: Type = {
+//     "(" <Type> ")",
+//     "()" => Type::Unit,
+//     "Number" => Type::Number,
+//     "Fn" "(" <args:Comma<Type>> ")" <ret:("->" <Type>)?> => {
+//         Type::Fn(args, Box::new(ret.unwrap_or(Type::Unit)))
+//     },
+//     <Variable> => Type::Variable(<>),
+// }
+
+pub Pattern: RcPattern = {
+    "_" => Pattern::Wildcard.into(),
+    Name => Pattern::Binder(<>).into(),
+    Literal => Pattern::Literal(<>).into(),
+}
+
+pub Stmt: Stmt = {
+    "let" <pat:Pattern> "=" <expr:Expr> ";" => Stmt::Let {<>},
+    // <Decl> => Stmt::Decl(<>),
+}
+
+// pub Decl: Decl = {
+//     "fn" <name: Variable> "(" <bindings:Comma<Binding>> ")" <ret:("->" <Type>)?>
+//         "{" <body:Block> "}" => {
+//             Decl::Function(Function {
+//                 name,
+//                 bindings,
+//                 body,
+//                 ret: ret.unwrap_or(Type::Unit),
+//             })
+//     }
+// }
+
+pub Block: Block = {
+    "{" <stmts:Stmt*> <expr:Expr?> "}" => Block {stmts, expr: expr.unwrap_or_else(|| Expr::Unit.into())}
+}

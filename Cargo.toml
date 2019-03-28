@@ -4,5 +4,10 @@ version = "0.1.0"
 authors = ["Max Willsey <me@mwillsey.com>"]
 edition = "2018"
 
+[build-dependencies]
+lalrpop = "0.16.3"
+
 [dependencies]
 im = "12"
+lalrpop-util = "0.16.3"
+regex = "0.2.0"

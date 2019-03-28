@@ -1,4 +1,4 @@
-use crate::ast::*;
+use crate::syntax::ast::*;
 
 type Env = im::HashMap<Name, Value>;
 
@@ -6,6 +6,7 @@ type Env = im::HashMap<Name, Value>;
 pub enum Value {
     Int(i32),
     Float(f64),
+    Unit,
     Closure(Closure),
 }
 
@@ -13,7 +14,7 @@ pub enum Value {
 pub struct Closure {
     env: Env,
     params: Vec<RcPattern>,
-    body: RcExpr,
+    body: Block,
 }
 
 impl Value {
@@ -86,13 +87,13 @@ impl RcExpr {
                 }
 
                 Value::Closure(Closure {
-                    params: params.iter().map(|(p, _)| p.clone()).collect(),
+                    params: params.iter().map(|p| p.clone()).collect(),
                     body: body.clone(),
                     env: closed_env,
                 })
             }
-            Expr::Call(fun, args) => {
-                let closure = fun.eval(env)?.to_closure()?;
+            Expr::Call { func, args } => {
+                let closure = func.eval(env)?.to_closure()?;
                 let mut v_args = Vec::with_capacity(args.len());
                 for a in args {
                     v_args.push(a.eval(env)?);
@@ -105,16 +106,21 @@ impl RcExpr {
 
                 closure.body.eval(&closed_env)?
             }
-            Expr::Block(block) => {
-                let mut env = env.clone();
-                for stmt in &block.stmts {
-                    stmt.eval(&mut env)?;
-                }
-                block.expr.eval(&env)?
-            }
+            Expr::Block(block) => block.eval(env)?,
+            Expr::Unit => Value::Unit,
         };
 
         Ok(val)
+    }
+}
+
+impl Block {
+    pub fn eval(&self, env: &Env) -> Result<Value, String> {
+        let mut env = env.clone();
+        for stmt in &self.stmts {
+            stmt.eval(&mut env)?;
+        }
+        self.expr.eval(&env)
     }
 }
 
@@ -160,17 +166,16 @@ impl RcPattern {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::constructor::*;
+    use crate::syntax::grammar::{parse_expr, parse_pattern};
 
     #[test]
     fn test_simple_eval() {
         let empty = Env::new();
 
-        let e = add(int(2), int(5));
+        let e = parse_expr("2 + 5");
         assert_eq!(e.eval(&empty), Ok(Value::Int(7)));
 
-        let square = lambda(&["x"], mul(var("x"), var("x")));
-        let e = call(square, &[int(3)]);
+        let e = parse_expr("(|x| {x * x})(3)");
         assert_eq!(e.eval(&empty), Ok(Value::Int(9)));
     }
 
@@ -182,11 +187,11 @@ mod tests {
             Ok(env)
         }
 
-        let pat = Pattern::Literal(Literal::Int(5));
+        let pat = parse_pattern("5");
         let val = Value::Int(5);
         assert_eq!(bind(pat.into(), val), Ok(Env::new()));
 
-        let pat = Pattern::Literal(Literal::Int(6));
+        let pat = parse_pattern("6");
         let val = Value::Int(5);
         assert!(bind(pat.into(), val).is_err());
     }

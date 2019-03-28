@@ -6,7 +6,6 @@ use im::HashSet as Set;
 pub enum Type {
     Int,
     Float,
-
     Fn { args: Vec<RcType>, ret: RcType },
 }
 
@@ -73,21 +72,11 @@ pub enum Expr {
     Var(Name),
     // Ann(RcExpr, RcType), // Annotated expressions
     Literal(Literal),
-    Bop {
-        bop: Bop,
-        e1: RcExpr,
-        e2: RcExpr,
-    },
+    Bop { bop: Bop, e1: RcExpr, e2: RcExpr },
     Block(Block),
-    Lambda {
-        params: Vec<RcPattern>,
-        body: Block,
-    },
-    Call {
-        func: RcExpr,
-        args: Vec<RcExpr>
-    },
-    Unit
+    Lambda { params: Vec<RcPattern>, body: Block },
+    Call { func: RcExpr, args: Vec<RcExpr> },
+    Unit,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -134,30 +123,29 @@ impl RcExpr {
             Expr::Bop { e1, e2, .. } => {
                 e1.free_vars_not_bound(bound) + e2.free_vars_not_bound(bound)
             }
-            // Block(Scope<Nest<(RcPattern, Embed<RcExpr>)>, RcExpr>),
             Expr::Lambda { params, body } => {
                 let mut bound = bound.clone();
-                for (pat, _) in params {
+                for pat in params {
                     pat.add_bound_vars(&mut bound)
                 }
                 body.free_vars_not_bound(&bound)
             }
-            Expr::Call(fun, args) => {
-                let fun_fv = fun.free_vars_not_bound(bound);
+            Expr::Call { func, args } => {
+                let func_fv = func.free_vars_not_bound(bound);
                 let args_fv = Set::unions(args.iter().map(|a| a.free_vars_not_bound(bound)));
-                fun_fv + args_fv
+                func_fv + args_fv
             }
-            Expr::Block(block) => {
-                let mut bound = bound.clone();
-                let stmts_free = Set::unions(
-                    block
-                        .stmts
-                        .iter()
-                        .map(|s| s.free_vars_not_bound(&mut bound)),
-                );
-                stmts_free + block.expr.free_vars_not_bound(&bound)
-            }
+            Expr::Block(block) => block.free_vars_not_bound(bound),
+            Expr::Unit => Set::new(),
         }
+    }
+}
+
+impl Block {
+    fn free_vars_not_bound(&self, bound: &Set<Name>) -> Set<Name> {
+        let mut bound = bound.clone();
+        let stmts_free = Set::unions(self.stmts.iter().map(|s| s.free_vars_not_bound(&mut bound)));
+        stmts_free + self.expr.free_vars_not_bound(&bound)
     }
 }
 
@@ -185,10 +173,18 @@ impl RcPattern {
     }
 }
 
+pub fn var(s: &'static str) -> RcExpr {
+    Expr::Var(s.into()).into()
+}
+
+pub fn int(i: i32) -> RcExpr {
+    Expr::Literal(Literal::Int(i)).into()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::constructor::*;
     use super::*;
+    use crate::syntax::grammar::parse_expr;
 
     fn set(strs: &[&str]) -> Set<Name> {
         strs.iter().map(|s| s.to_string()).collect()
@@ -196,19 +192,16 @@ mod tests {
 
     #[test]
     fn test_free_variables() {
-        let e = lambda(&["x"], add(var("x"), var("x")));
+        let e = parse_expr("|x| {x + x}");
         assert_eq!(e.free_vars(), set(&[]));
 
-        let e = add(var("x"), var("x"));
+        let e = parse_expr("x + x");
         assert_eq!(e.free_vars(), set(&["x"]));
 
-        let e = lambda(&["x"], add(var("y"), var("x")));
+        let e = parse_expr("|x| {y + x}");
         assert_eq!(e.free_vars(), set(&["y"]));
 
-        let e = lambda(
-            &["y"],
-            lambda(&["x"], add(var("x"), add(var("y"), var("z")))),
-        );
+        let e = parse_expr("|y| {|x| {x + y + z}}");
         assert_eq!(e.free_vars(), set(&["z"]));
     }
 
