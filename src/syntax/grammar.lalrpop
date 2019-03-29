@@ -94,20 +94,23 @@ Tuple<T>: Vec<T> = {
 // other stuff
 
 
-// pub Type: Type = {
-//     "(" <Type> ")",
-//     "()" => Type::Unit,
-//     "Number" => Type::Number,
-//     "Fn" "(" <args:Comma<Type>> ")" <ret:("->" <Type>)?> => {
-//         Type::Fn(args, Box::new(ret.unwrap_or(Type::Unit)))
-//     },
-//     <Variable> => Type::Variable(<>),
-// }
+pub Type: RcType = {
+    "(" <Type> ")",
+    Tuple<Type> => Type::Tuple(<>).into(),
+    "Int" => Type::Int.into(),
+    "Float" => Type::Float.into(),
+    "Fn" "(" <args:Comma<Type>> ")" <ret:("->" <Type>)?> => {
+        let ret = ret.unwrap_or_else(|| Type::Tuple(vec![]).into());
+        Type::Fn(args, ret).into()
+    },
+    // <Name> => Type::Variable(<>),
+}
 
 pub Pattern: RcPattern = {
     "_" => Pattern::Wildcard.into(),
     Name => Pattern::Binder(<>).into(),
     Literal => Pattern::Literal(<>).into(),
+    <Pattern> ":" <Type> => Pattern::Annotated(<>).into(),
     Tuple<Pattern> => Pattern::Tuple(<>).into(),
 }
 

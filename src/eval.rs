@@ -171,6 +171,7 @@ impl RcPattern {
     fn bind(&self, val: &Value) -> Result<Env, String> {
         match self.inner.as_ref() {
             Pattern::Wildcard => Ok(Env::new()),
+            Pattern::Annotated(pat, _typ) => pat.bind(val),
             Pattern::Literal(lit) => match (lit, val) {
                 (Literal::Int(li), Value::Int(vi)) if li == vi => Ok(Env::new()),
                 (Literal::Float(lf), Value::Float(vf)) if lf == vf => Ok(Env::new()),

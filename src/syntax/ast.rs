@@ -6,7 +6,8 @@ use im::HashSet as Set;
 pub enum Type {
     Int,
     Float,
-    Fn { args: Vec<RcType>, ret: RcType },
+    Tuple(Vec<RcType>),
+    Fn(Vec<RcType>, RcType),
 }
 
 pub type Name = Rc<str>;
@@ -37,7 +38,7 @@ pub enum Literal {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Pattern {
     Wildcard,
-    // Ann(RcPattern, RcType),
+    Annotated(RcPattern, RcType),
     Literal(Literal),
     Binder(Name),
     Tuple(Vec<RcPattern>),
@@ -166,6 +167,7 @@ impl RcPattern {
     fn add_bound_vars(&self, bound: &mut Set<Name>) {
         match self.inner.as_ref() {
             Pattern::Wildcard => (),
+            Pattern::Annotated(pat, _typ) => pat.add_bound_vars(bound),
             Pattern::Literal(_) => (),
             Pattern::Binder(name) => {
                 bound.insert(name.clone());

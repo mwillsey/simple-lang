@@ -14,6 +14,13 @@ pub fn parse_pattern(s: &str) -> RcPattern {
     }
 }
 
+pub fn parse_type(s: &str) -> RcType {
+    match TypeParser::new().parse(s) {
+        Ok(e) => e,
+        Err(err) => panic!("Failed to parse: {}\nerr: {}", s, err),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
