@@ -111,13 +111,8 @@ impl RcExpr {
                 for a in args {
                     v_args.push(a.eval(env)?);
                 }
-
-                let mut closed_env = closure.env;
-                for (p, v) in closure.params.iter().zip(v_args) {
-                    p.bind(v, &mut closed_env)?;
-                }
-
-                closure.body.eval(&closed_env)?
+                let env = closure.env + bind_multiple(&closure.params, &v_args)?;
+                closure.body.eval(&env)?
             }
             Expr::Block(block) => block.eval(env)?,
             Expr::Tuple(exprs) => {
@@ -148,43 +143,44 @@ impl Stmt {
         match self {
             Stmt::Let { pat, expr } => {
                 let val = expr.eval(env)?;
-                pat.bind(val, env)
+                pat.bind(&val).map(|en| env.extend(en))
             }
         }
     }
 }
 
+fn bind_multiple(patterns: &[RcPattern], values: &[Value]) -> Result<Env, String> {
+    if patterns.len() != values.len() {
+        return Err("binding of unequal length".into());
+    }
+
+    let mut env = Env::new();
+
+    for (p, v) in patterns.iter().zip(values) {
+        for (name, val) in p.bind(v)? {
+            if let Some(_) = env.insert(name.clone(), val) {
+                return Err(format!("duplicate binding of {:?}", name));
+            }
+        }
+    }
+
+    Ok(env)
+}
+
 impl RcPattern {
-    pub fn bind(&self, val: Value, env: &mut Env) -> Result<(), String> {
+    fn bind(&self, val: &Value) -> Result<Env, String> {
         match self.inner.as_ref() {
-            Pattern::Wildcard => Ok(()),
-            Pattern::Literal(Literal::Int(i)) => {
-                let vi = val.to_int()?;
-                if *i == vi {
-                    Ok(())
-                } else {
-                    Err("not equal at binding site".into())
-                }
-            }
-            Pattern::Literal(Literal::Float(f)) => {
-                let vf = val.to_float()?;
-                if *f == vf {
-                    Ok(())
-                } else {
-                    Err("not equal at binding site".into())
-                }
-            }
-            Pattern::Binder(name) => {
-                env.insert(name.clone(), val);
-                Ok(())
-            }
-            Pattern::Tuple(pats) => {
-                let vals = val.to_tuple(pats.len())?;
-                for (pat, val) in pats.iter().zip(vals) {
-                    pat.bind(val, env)?;
-                }
-                Ok(())
-            }
+            Pattern::Wildcard => Ok(Env::new()),
+            Pattern::Literal(lit) => match (lit, val) {
+                (Literal::Int(li), Value::Int(vi)) if li == vi => Ok(Env::new()),
+                (Literal::Float(lf), Value::Float(vf)) if lf == vf => Ok(Env::new()),
+                _ => Err("not equal at binding site".into()),
+            },
+            Pattern::Binder(name) => Ok(Env::unit(name.clone(), val.clone())),
+            Pattern::Tuple(pats) => match val {
+                Value::Tuple(vals) => bind_multiple(pats, &vals),
+                _ => Err("can't bind non-tuple to tuple".into()),
+            },
         }
     }
 }
@@ -236,26 +232,21 @@ mod tests {
 
     #[test]
     fn test_pattern_bind() {
-        fn bind(pat: RcPattern, val: Value) -> Result<Env, String> {
-            let mut env = Env::new();
-            pat.bind(val, &mut env)?;
-            Ok(env)
-        }
-
         let pat = parse_pattern("5");
         let val = Value::Int(5);
-        assert_eq!(bind(pat.into(), val), Ok(Env::new()));
+        assert_eq!(pat.bind(&val), Ok(Env::new()));
 
         let pat = parse_pattern("6");
         let val = Value::Int(5);
-        assert!(bind(pat.into(), val).is_err());
+        assert!(pat.bind(&val).is_err());
 
         let pat = parse_pattern("(x, 2, y, _)");
         let val = parse_value("(1, 2, 3, 4)");
-        assert_eq!(
-            bind(pat.into(), val),
-            Ok(mk_env(&[("x", "1"), ("y", "3"),]))
-        );
+        assert_eq!(pat.bind(&val), Ok(mk_env(&[("x", "1"), ("y", "3"),])));
+
+        let pat = parse_pattern("(x, (_, x))");
+        let val = parse_value("(1, (2, 3))");
+        assert!(pat.bind(&val).is_err());
     }
 
 }
