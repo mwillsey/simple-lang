@@ -111,7 +111,7 @@ impl RcExpr {
                 for a in args {
                     v_args.push(a.eval(env)?);
                 }
-                let env = closure.env + bind_multiple(&closure.params, &v_args)?;
+                let env = closure.env + bind_multiple_values(&closure.params, &v_args)?;
                 closure.body.eval(&env)?
             }
             Expr::Block(block) => block.eval(env)?,
@@ -143,13 +143,13 @@ impl Stmt {
         match self {
             Stmt::Let { pat, expr } => {
                 let val = expr.eval(env)?;
-                pat.bind(&val).map(|en| env.extend(en))
+                pat.bind_value(&val).map(|en| env.extend(en))
             }
         }
     }
 }
 
-fn bind_multiple(patterns: &[RcPattern], values: &[Value]) -> Result<Env, String> {
+fn bind_multiple_values(patterns: &[RcPattern], values: &[Value]) -> Result<Env, String> {
     if patterns.len() != values.len() {
         return Err("binding of unequal length".into());
     }
@@ -157,7 +157,7 @@ fn bind_multiple(patterns: &[RcPattern], values: &[Value]) -> Result<Env, String
     let mut env = Env::new();
 
     for (p, v) in patterns.iter().zip(values) {
-        for (name, val) in p.bind(v)? {
+        for (name, val) in p.bind_value(v)? {
             if let Some(_) = env.insert(name.clone(), val) {
                 return Err(format!("duplicate binding of {:?}", name));
             }
@@ -168,10 +168,10 @@ fn bind_multiple(patterns: &[RcPattern], values: &[Value]) -> Result<Env, String
 }
 
 impl RcPattern {
-    fn bind(&self, val: &Value) -> Result<Env, String> {
+    fn bind_value(&self, val: &Value) -> Result<Env, String> {
         match self.inner.as_ref() {
             Pattern::Wildcard => Ok(Env::new()),
-            Pattern::Annotated(pat, _typ) => pat.bind(val),
+            Pattern::Annotated(pat, _typ) => pat.bind_value(val),
             Pattern::Literal(lit) => match (lit, val) {
                 (Literal::Int(li), Value::Int(vi)) if li == vi => Ok(Env::new()),
                 (Literal::Float(lf), Value::Float(vf)) if lf == vf => Ok(Env::new()),
@@ -179,7 +179,7 @@ impl RcPattern {
             },
             Pattern::Binder(name) => Ok(Env::unit(name.clone(), val.clone())),
             Pattern::Tuple(pats) => match val {
-                Value::Tuple(vals) => bind_multiple(pats, &vals),
+                Value::Tuple(vals) => bind_multiple_values(pats, &vals),
                 _ => Err("can't bind non-tuple to tuple".into()),
             },
         }
@@ -235,19 +235,19 @@ mod tests {
     fn test_pattern_bind() {
         let pat = parse_pattern("5");
         let val = Value::Int(5);
-        assert_eq!(pat.bind(&val), Ok(Env::new()));
+        assert_eq!(pat.bind_value(&val), Ok(Env::new()));
 
         let pat = parse_pattern("6");
         let val = Value::Int(5);
-        assert!(pat.bind(&val).is_err());
+        assert!(pat.bind_value(&val).is_err());
 
         let pat = parse_pattern("(x, 2, y, _)");
         let val = parse_value("(1, 2, 3, 4)");
-        assert_eq!(pat.bind(&val), Ok(mk_env(&[("x", "1"), ("y", "3"),])));
+        assert_eq!(pat.bind_value(&val), Ok(mk_env(&[("x", "1"), ("y", "3"),])));
 
         let pat = parse_pattern("(x, (_, x))");
         let val = parse_value("(1, (2, 3))");
-        assert!(pat.bind(&val).is_err());
+        assert!(pat.bind_value(&val).is_err());
     }
 
 }
