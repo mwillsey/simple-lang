@@ -74,10 +74,20 @@ pub enum Expr {
     Var(Name),
     // Ann(RcExpr, RcType), // Annotated expressions
     Literal(Literal),
-    Bop { bop: Bop, e1: RcExpr, e2: RcExpr },
+    Bop {
+        bop: Bop,
+        e1: RcExpr,
+        e2: RcExpr,
+    },
     Block(Block),
-    Lambda { params: Vec<RcPattern>, body: RcExpr },
-    Call { func: RcExpr, args: Vec<RcExpr> },
+    Lambda {
+        params: Vec<RcPattern>,
+        body: RcExpr,
+    },
+    Call {
+        func: RcExpr,
+        args: Vec<RcExpr>,
+    },
     Tuple(Vec<RcExpr>),
 }
 
@@ -192,7 +202,7 @@ pub fn int(i: i32) -> RcExpr {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::syntax::grammar::parse_expr;
+    use crate::syntax::grammar::expr;
 
     fn set(strs: &[&str]) -> Set<Name> {
         strs.iter().map(|s| s.to_string()).collect()
@@ -200,16 +210,16 @@ mod tests {
 
     #[test]
     fn test_free_variables() {
-        let e = parse_expr("|x| {x + x}");
+        let e = expr!(|x| x + x);
         assert_eq!(e.free_vars(), set(&[]));
 
-        let e = parse_expr("x + x");
+        let e = expr!(x + x);
         assert_eq!(e.free_vars(), set(&["x"]));
 
-        let e = parse_expr("|x| {y + x}");
+        let e = expr!(|x| y + x);
         assert_eq!(e.free_vars(), set(&["y"]));
 
-        let e = parse_expr("|y| {|x| {x + y + z}}");
+        let e = expr!(|y| |x| x + y + z);
         assert_eq!(e.free_vars(), set(&["z"]));
     }
 

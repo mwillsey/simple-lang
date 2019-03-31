@@ -38,19 +38,6 @@ impl Value {
             _ => Err("not a closure".into()),
         }
     }
-
-    fn to_tuple(self, n: usize) -> Result<Vec<Value>, String> {
-        match self {
-            Value::Tuple(vs) => {
-                if vs.len() == n {
-                    Ok(vs)
-                } else {
-                    Err("wrong size tuple".into())
-                }
-            }
-            _ => Err("not a tuple".into()),
-        }
-    }
 }
 
 fn do_bop(bop: &Bop, v1: Value, v2: Value) -> Result<Value, String> {
@@ -189,65 +176,67 @@ impl RcPattern {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::syntax::grammar::{parse_expr, parse_pattern};
 
-    fn parse_value(s: &str) -> Value {
-        let expr = parse_expr(s);
-        let env = Env::new();
-        expr.eval(&env).unwrap()
+    use crate::syntax::grammar::{expr, pattern};
+
+    macro_rules! eval {
+        ($e:expr) => {{
+            let e = expr!($e);
+            let env = Env::new();
+            e.eval(&env)
+        }};
     }
 
-    fn mk_env(names_and_vals: &[(&str, &str)]) -> Env {
-        names_and_vals
-            .iter()
-            .map(|&(n, v)| {
-                let name: Name = n.into();
-                let val = parse_value(v);
-                (name, val)
-            })
-            .collect()
+    macro_rules! mk_env {
+        {$($id:ident : $e:expr),*} => ({
+            let mut env = Env::new();
+            $(
+                let name: Name = stringify!($id).into();
+                let value = eval!($e).unwrap();
+                env.insert(name, value);
+            )*
+            env
+        })
+    }
+
+    macro_rules! bind {
+        ($pat:pat = $e:expr) => {{
+            let pat = pattern!($pat);
+            let value = eval!($e).unwrap();
+            pat.bind_value(&value)
+        }};
     }
 
     #[test]
     fn test_simple_eval() {
-        let empty = Env::new();
+        assert_eq!(eval!(2 + 5), eval!(7));
 
-        let e = parse_expr("2 + 5");
-        assert_eq!(e.eval(&empty), Ok(Value::Int(7)));
+        assert_eq!(eval! { (|x| x * x)(3) }, eval!(9));
 
-        let e = parse_expr("(|x| {x * x})(3)");
-        assert_eq!(e.eval(&empty), Ok(Value::Int(9)));
+        // make sure tuples and ints are different
+        assert_eq!(eval! { (1 + 1) }, eval! { 2 });
+        assert_eq!(eval! { (1 + 1,) }, eval! { (2,) });
+        assert_ne!(eval! { (2,) }, eval! { (2) });
 
-        let e = parse_expr("(1 + 1)");
-        assert_eq!(e.eval(&empty), Ok(Value::Int(2)));
-
-        let e = parse_expr("(1 + 1,)");
-        assert_eq!(e.eval(&empty), Ok(Value::Tuple(vec![Value::Int(2)])));
-
-        let e = parse_expr("(1 + 1, 1.0 + 1.0)");
-        assert_eq!(
-            e.eval(&empty),
-            Ok(Value::Tuple(vec![Value::Int(2), Value::Float(2.0)]))
-        );
+        assert_ne!(eval!(2), eval!(2.0));
+        assert_eq!(eval! { (1 + 1, 1.0 + 1.0) }, eval! { (2, 2.0) },);
     }
 
     #[test]
     fn test_pattern_bind() {
-        let pat = parse_pattern("5");
-        let val = Value::Int(5);
-        assert_eq!(pat.bind_value(&val), Ok(Env::new()));
+        assert_eq!(bind! { 5 = 5 }, Ok(Env::new()));
 
-        let pat = parse_pattern("6");
-        let val = Value::Int(5);
-        assert!(pat.bind_value(&val).is_err());
+        assert!(bind! { 6 = 5 }.is_err());
 
-        let pat = parse_pattern("(x, 2, y, _)");
-        let val = parse_value("(1, 2, 3, 4)");
-        assert_eq!(pat.bind_value(&val), Ok(mk_env(&[("x", "1"), ("y", "3"),])));
+        assert_eq!(
+            bind! { (x, 2, y, _) = (1, 2, 3, 4) },
+            Ok(mk_env! {
+                x: 1,
+                y: 3
+            })
+        );
 
-        let pat = parse_pattern("(x, (_, x))");
-        let val = parse_value("(1, (2, 3))");
-        assert!(pat.bind_value(&val).is_err());
+        assert!(bind! { (x, (_, x)) = (1, (2, 3)) }.is_err());
     }
 
 }

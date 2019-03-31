@@ -171,31 +171,30 @@ impl RcPattern {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::syntax::grammar::{parse_expr, parse_pattern, parse_type};
+    use crate::syntax::grammar::{expr, pattern, typ};
 
     macro_rules! infer {
-        ($($b:tt)*) => ({
-            let s = format!("{{ {} }}", stringify!($($b)*));
-            let e = parse_expr(&s);
+        ($e:expr) => {{
+            let e = expr!($e);
             let env = Env::new();
             e.infer_type(&env)
-        })
+        }};
     }
 
     #[test]
     fn test_infer_type() {
         assert_eq!(
-            infer! {
+            infer!({
                 let x = 1;
-                let square = |x: Int| { x * x };
+                let square = |x: Int| x * x;
                 square(x)
-            },
-            Ok(parse_type("Int"))
+            }),
+            Ok(typ!(Int))
         );
 
         assert_eq!(
             infer!(|x: Int| |y: Int| x * x),
-            Ok(parse_type("Fn (Int) -> Fn (Int) -> Int"))
+            Ok(typ!(Fn (Int) -> Fn (Int) -> Int))
         );
     }
 
@@ -205,46 +204,53 @@ mod tests {
         assert!(infer!(|x| x + 1).is_err());
 
         // bound lambda without annotation should also not be inferred
-        assert!(infer! { let inc = |x| x + 1; inc }.is_err());
+        assert!(infer!({
+            let inc = |x| x + 1;
+            inc
+        })
+        .is_err());
 
         // bound lambda with annotation should be inferred
         assert_eq!(
-            infer! { let inc: Fn(Int) -> Int = |x| x + 1; inc },
-            Ok(parse_type("Fn(Int)-> Int"))
+            infer!({
+                let inc: Fn(Int) -> Int = |x| x + 1;
+                inc
+            }),
+            Ok(typ!(Fn(Int) -> Int))
         );
 
         // lambda at call site can also be inferred
         assert_eq!(
-            infer! {
+            infer!({
                 let do_twice = |f: Fn(Int) -> Int, x: Int| f(f(x));
                 do_twice(|x| x + 1, 1)
-            },
-            Ok(parse_type("Int"))
+            }),
+            Ok(typ!(Int))
         );
     }
 
     #[test]
     fn test_get_annotated_type() {
-        let pat = parse_pattern("1");
-        let typ = parse_type("Int");
+        let pat = pattern! { 1 };
+        let typ = typ! { Int };
         assert_eq!(pat.get_annotated_type(), Some(typ));
 
-        let pat = parse_pattern("x");
+        let pat = pattern! { x };
         assert_eq!(pat.get_annotated_type(), None);
 
-        let pat = parse_pattern("(x, y): (Int, Float)");
-        let typ = parse_type("(Int, Float)");
+        let pat = pattern! { ((x, y): (Int, Float)) };
+        let typ = typ! { (Int, Float) };
         assert_eq!(pat.get_annotated_type(), Some(typ));
 
-        let pat = parse_pattern("(x: Int, _: Float)");
-        let typ = parse_type("(Int, Float)");
+        let pat = pattern! { (x: Int, _: Float) };
+        let typ = typ! { (Int, Float) };
         assert_eq!(pat.get_annotated_type(), Some(typ));
 
-        let pat = parse_pattern("(3, y: Float)");
-        let typ = parse_type("(Int, Float)");
+        let pat = pattern! { (3, y: Float) };
+        let typ = typ! { (Int, Float) };
         assert_eq!(pat.get_annotated_type(), Some(typ));
 
-        let pat = parse_pattern("(x: Int, y: Float, _)");
+        let pat = pattern! { (x: Int, y: Float, _) };
         assert_eq!(pat.get_annotated_type(), None);
     }
 }

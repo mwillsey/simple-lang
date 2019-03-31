@@ -107,6 +107,7 @@ pub Type: RcType = {
 }
 
 pub Pattern: RcPattern = {
+    "(" <Pattern> ")",
     "_" => Pattern::Wildcard.into(),
     Name => Pattern::Binder(<>).into(),
     Literal => Pattern::Literal(<>).into(),
