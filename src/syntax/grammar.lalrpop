@@ -24,6 +24,7 @@ pub Literal: Literal = {
 // Expressions
 
 pub Expr: RcExpr = {
+    "|" <params:Comma<Pattern>> "|" <body: Expr> => Expr::Lambda{<>}.into(),
     Expr1,
 }
 
@@ -63,7 +64,6 @@ ExprN: RcExpr = {
     Literal => Expr::Literal(<>).into(),
     Tuple<Expr> => Expr::Tuple(<>).into(),
     <Block> => Expr::Block(<>).into(),
-    "|" <params:Comma<Pattern>> "|" <body: Block> => Expr::Lambda{<>}.into()
 }
 
 Comma<T>: Vec<T> = {

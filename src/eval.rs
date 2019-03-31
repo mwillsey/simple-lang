@@ -14,7 +14,7 @@ pub enum Value {
 pub struct Closure {
     env: Env,
     params: Vec<RcPattern>,
-    body: Block,
+    body: RcExpr,
 }
 
 impl Value {

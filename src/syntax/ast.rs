@@ -76,7 +76,7 @@ pub enum Expr {
     Literal(Literal),
     Bop { bop: Bop, e1: RcExpr, e2: RcExpr },
     Block(Block),
-    Lambda { params: Vec<RcPattern>, body: Block },
+    Lambda { params: Vec<RcPattern>, body: RcExpr },
     Call { func: RcExpr, args: Vec<RcExpr> },
     Tuple(Vec<RcExpr>),
 }

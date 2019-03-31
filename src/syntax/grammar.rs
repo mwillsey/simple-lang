@@ -30,13 +30,24 @@ mod tests {
         use crate::syntax::ast;
         use ast::Expr::*;
 
-        // assert_eq!(
-        //     parse_expr("()(())"),
-        //     Call {
-        //         func: Unit.into(),
-        //         args: vec![Unit],
-        //     }
-        // );
+        fn binder(s: &str) -> RcPattern {
+            ast::Pattern::Binder(s.into()).into()
+        }
+
+        assert_eq!(
+            parse_expr("|x| |y| x * y"),
+            Lambda {
+                params: vec![binder("x")],
+                body: Lambda {
+                    params: vec![binder("y")],
+                    body: Bop {
+                        bop: ast::Bop::Mul,
+                        e1: var("x"),
+                        e2: var("y"),
+                    }.into()
+                }.into()
+            }.into()
+        );
 
         assert_eq!(
             parse_expr("1 + x()"),
