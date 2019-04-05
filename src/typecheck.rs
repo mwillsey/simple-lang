@@ -79,6 +79,9 @@ impl RcExpr {
                 }
                 Ok(Type::Tuple(types).into())
             }
+            Expr::Match { .. } => unimplemented!(),
+            Expr::Left { .. } => unimplemented!(),
+            Expr::Right { .. } => unimplemented!(),
         }
     }
 }

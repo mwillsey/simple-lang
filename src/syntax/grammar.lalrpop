@@ -64,6 +64,16 @@ ExprN: RcExpr = {
     Literal => Expr::Literal(<>).into(),
     Tuple<Expr> => Expr::Tuple(<>).into(),
     <Block> => Expr::Block(<>).into(),
+    "Left" "(" <expr: Expr> ")" ":" "(" <t1: Type> "," <t2: Type> ")" => Expr::Left { expr, typ: (t1, t2) }.into(),
+    "Right" "(" <expr: Expr> ")" ":" "(" <t1: Type> "," <t2: Type> ")" => Expr::Right { expr, typ: (t1, t2) }.into(),
+    "match" <expr: Expr> "{"
+        "Left" "(" <lp: Pattern> ")" "=>" <le: Expr> ","
+        "Right" "(" <rp: Pattern> ")" "=>" <re: Expr> ","
+    "}" => Expr::Match {
+        expr,
+        left: (lp, le),
+        right: (rp, re),
+    }.into()
 }
 
 Comma<T>: Vec<T> = {

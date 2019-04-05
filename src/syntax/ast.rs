@@ -8,6 +8,7 @@ pub enum Type {
     Float,
     Tuple(Vec<RcType>),
     Fn(Vec<RcType>, RcType),
+    Either(RcType, RcType),
 }
 
 pub type Name = Rc<str>;
@@ -89,6 +90,19 @@ pub enum Expr {
         args: Vec<RcExpr>,
     },
     Tuple(Vec<RcExpr>),
+    Match {
+        expr: RcExpr,
+        left: (RcPattern, RcExpr),
+        right: (RcPattern, RcExpr),
+    },
+    Left {
+        expr: RcExpr,
+        typ: (RcType, RcType),
+    },
+    Right {
+        expr: RcExpr,
+        typ: (RcType, RcType),
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -149,6 +163,9 @@ impl RcExpr {
             }
             Expr::Block(block) => block.free_vars_not_bound(bound),
             Expr::Tuple(exprs) => Set::unions(exprs.iter().map(|e| e.free_vars_not_bound(bound))),
+            Expr::Match { .. } => unimplemented!(),
+            Expr::Left { .. } => unimplemented!(),
+            Expr::Right { .. } => unimplemented!(),
         }
     }
 }

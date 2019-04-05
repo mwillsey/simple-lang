@@ -109,6 +109,9 @@ impl RcExpr {
                 }
                 Value::Tuple(vals)
             }
+            Expr::Match { .. } => unimplemented!(),
+            Expr::Left { .. } => unimplemented!(),
+            Expr::Right { .. } => unimplemented!(),
         };
 
         Ok(val)
@@ -220,6 +223,20 @@ mod tests {
 
         assert_ne!(eval!(2), eval!(2.0));
         assert_eq!(eval! { (1 + 1, 1.0 + 1.0) }, eval! { (2, 2.0) },);
+    }
+
+    #[test]
+    fn test_eval_enum() {
+        assert_eq!(
+            eval!({
+                let x = Left(5): (Int, Float);
+                match x {
+                    Left(i) => i,
+                    Right(f) => f,
+                }
+            }),
+            eval!(6)
+        );
     }
 
     #[test]
