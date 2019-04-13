@@ -163,9 +163,16 @@ impl RcExpr {
             }
             Expr::Block(block) => block.free_vars_not_bound(bound),
             Expr::Tuple(exprs) => Set::unions(exprs.iter().map(|e| e.free_vars_not_bound(bound))),
-            Expr::Match { .. } => unimplemented!(),
-            Expr::Left { .. } => unimplemented!(),
-            Expr::Right { .. } => unimplemented!(),
+            Expr::Match { expr: e, left: (p1, e1), right: (p2, e2)} => {
+                let mut bound1 = bound.clone();
+                p1.add_bound_vars(&mut bound1);
+                let e1 = e1.free_vars_not_bound(&bound1);
+                let mut bound2 = bound.clone();
+                p2.add_bound_vars(&mut bound2);
+                e1 + e2.free_vars_not_bound(&bound2) + e.free_vars_not_bound(&bound)
+            },
+            Expr::Left { expr: e, typ: t } => e.free_vars_not_bound(&bound),
+            Expr::Right { expr: e, typ: t } => e.free_vars_not_bound(&bound)
         }
     }
 }

@@ -8,6 +8,8 @@ pub enum Value {
     Float(f64),
     Closure(Closure),
     Tuple(Vec<Value>),
+    Left(Box<Value>, (RcType, RcType)),
+    Right(Box<Value>, (RcType, RcType))
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -57,6 +59,7 @@ fn do_bop(bop: &Bop, v1: Value, v2: Value) -> Result<Value, String> {
         _ => Err("can't bop a closure".into()),
     }
 }
+
 
 impl RcExpr {
     pub fn eval(&self, env: &Env) -> Result<Value, String> {
@@ -109,9 +112,29 @@ impl RcExpr {
                 }
                 Value::Tuple(vals)
             }
-            Expr::Match { .. } => unimplemented!(),
-            Expr::Left { .. } => unimplemented!(),
-            Expr::Right { .. } => unimplemented!(),
+            Expr::Match{ expr: e, left: (p1, e1), right: (p2, e2) } => {
+                let v = e.eval(env)?;
+                match v { 
+                    Value::Left(lv, (t1, t2)) => { //lv is boxed
+                        let env = env + &(p1.bind_value(lv.unbox())?);
+                        e1.eval(&env)?
+                    },
+                    Value::Right(rv, (t1, t2)) => { //rv is boxed
+                        let env = env + &(p2.bind_value(rv.unbox())?);
+                        e2.eval(&env)?
+                    },
+                    _ => Err("Couldn't find a left or right value".into())
+                    
+                }
+            }
+            Expr::Left{ expr: e, typ: (t1, t2) } => {
+                let v = e.eval(env)?;
+                Value::Left(Box::new(v), (t1.clone(), t2.clone()) )
+            },
+            Expr::Right{ expr: e, typ: (t1, t2)  } => {
+                let v = e.eval(env)?;
+                Value::Right(Box::new(v), (t1.clone(), t2.clone()) )
+            }
         };
 
         Ok(val)
@@ -229,13 +252,14 @@ mod tests {
     fn test_eval_enum() {
         assert_eq!(
             eval!({
-                let x = Left(5): (Int, Float);
+                 let x = Left(5): (Int, Float);
                 match x {
                     Left(i) => i,
                     Right(f) => f,
                 }
+                //Match{expr: x, left: (Binder(x), Int(6)), right: (Binder(y), Int(5))}
             }),
-            eval!(6)
+            eval!(5)
         );
     }
 
