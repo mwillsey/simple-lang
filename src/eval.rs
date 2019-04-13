@@ -257,7 +257,6 @@ mod tests {
                     Left(i) => i,
                     Right(f) => f,
                 }
-                //Match{expr: x, left: (Binder(x), Int(6)), right: (Binder(y), Int(5))}
             }),
             eval!(5)
         );
