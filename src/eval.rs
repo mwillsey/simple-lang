@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use crate::syntax::ast::*;
 
 type Env = im::HashMap<Name, Value>;
@@ -8,8 +9,21 @@ pub enum Value {
     Float(f64),
     Closure(Closure),
     Tuple(Vec<Value>),
-    Left(Box<Value>, (RcType, RcType)),
-    Right(Box<Value>, (RcType, RcType))
+    Left(RcValue, (RcType, RcType)),
+    Right(RcValue, (RcType, RcType))
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RcValue {
+    pub inner: Rc<Value>,
+}
+
+impl From<Value> for RcValue {
+    fn from(src: Value) -> RcValue {
+        RcValue {
+            inner: Rc::new(src),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -115,25 +129,24 @@ impl RcExpr {
             Expr::Match{ expr: e, left: (p1, e1), right: (p2, e2) } => {
                 let v = e.eval(env)?;
                 match v { 
-                    Value::Left(lv, (t1, t2)) => { //lv is boxed
-                        let env = env + &(p1.bind_value(lv.unbox())?);
+                    Value::Left(lv, (t1, t2)) => { 
+                        let env = env + &(p1.bind_value(&lv)?);
                         e1.eval(&env)?
                     },
-                    Value::Right(rv, (t1, t2)) => { //rv is boxed
-                        let env = env + &(p2.bind_value(rv.unbox())?);
+                    Value::Right(rv, (t1, t2)) => { 
+                        let env = env + &(p2.bind_value(&rv)?);
                         e2.eval(&env)?
-                    },
-                    _ => Err("Couldn't find a left or right value".into())
+                    }
                     
                 }
             }
             Expr::Left{ expr: e, typ: (t1, t2) } => {
                 let v = e.eval(env)?;
-                Value::Left(Box::new(v), (t1.clone(), t2.clone()) )
+                Value::Left(RcValue::from(v), (t1.clone(), t2.clone()) )
             },
             Expr::Right{ expr: e, typ: (t1, t2)  } => {
                 let v = e.eval(env)?;
-                Value::Right(Box::new(v), (t1.clone(), t2.clone()) )
+                Value::Right(RcValue::from(v), (t1.clone(), t2.clone()) )
             }
         };
 
