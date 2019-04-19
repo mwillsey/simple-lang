@@ -9,22 +9,11 @@ pub enum Value {
     Float(f64),
     Closure(Closure),
     Tuple(Vec<Value>),
-    Left(RcValue, (RcType, RcType)),
-    Right(RcValue, (RcType, RcType))
+    Left(Box<Value>, (RcType, RcType)),
+    Right(Box<Value>, (RcType, RcType))
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct RcValue {
-    pub inner: Rc<Value>,
-}
 
-impl From<Value> for RcValue {
-    fn from(src: Value) -> RcValue {
-        RcValue {
-            inner: Rc::new(src),
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Closure {
@@ -136,17 +125,17 @@ impl RcExpr {
                     Value::Right(rv, (t1, t2)) => { 
                         let env = env + &(p2.bind_value(&rv)?);
                         e2.eval(&env)?
-                    }
-                    
+                    },
+                    _ => return Err("not a left or right".into())                    
                 }
             }
             Expr::Left{ expr: e, typ: (t1, t2) } => {
                 let v = e.eval(env)?;
-                Value::Left(RcValue::from(v), (t1.clone(), t2.clone()) )
+                Value::Left(Box::new(v), (t1.clone(), t2.clone()) )
             },
             Expr::Right{ expr: e, typ: (t1, t2)  } => {
                 let v = e.eval(env)?;
-                Value::Right(RcValue::from(v), (t1.clone(), t2.clone()) )
+                Value::Right(Box::new(v), (t1.clone(), t2.clone()) )
             }
         };
 
