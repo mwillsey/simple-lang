@@ -2,8 +2,8 @@ use crate::syntax::ast::*;
 
 type Env = im::HashMap<Name, RcType>;
 
-impl RcType {
-    pub fn subtype(&self, other: &RcType) -> Result<(), String> {
+impl Type {
+    pub fn subtype(&self, other: &Type) -> Result<(), String> {
         if self == other {
             Ok(())
         } else {
@@ -12,10 +12,10 @@ impl RcType {
     }
 }
 
-impl RcExpr {
-    pub fn check_type(&self, env: &Env, other: &RcType) -> Result<(), String> {
-        match self.inner.as_ref() {
-            Expr::Lambda { params, body } => match other.inner.as_ref() {
+impl Expr {
+    pub fn check_type(&self, env: &Env, other: &Type) -> Result<(), String> {
+        match self {
+            Expr::Lambda { params, body } => match other {
                 Type::Fn(param_types, ret_type) => {
                     let env = env.clone() + bind_multiple_types(params, &param_types)?;
                     body.check_type(&env, ret_type)
@@ -27,7 +27,7 @@ impl RcExpr {
     }
 
     pub fn infer_type(&self, env: &Env) -> Result<RcType, String> {
-        match self.inner.as_ref() {
+        match self {
             Expr::Var(name) => match env.get(name) {
                 Some(t) => Ok(t.clone()),
                 None => Err("can't find var".into()),
@@ -40,7 +40,7 @@ impl RcExpr {
                 let _ = bop;
                 let t1 = e1.infer_type(env)?;
                 let t2 = e2.infer_type(env)?;
-                match (t1.inner.as_ref(), t2.inner.as_ref()) {
+                match (t1.as_ref(), t2.as_ref()) {
                     (Type::Int, Type::Int) => Ok(Type::Int.into()),
                     (Type::Float, Type::Float) => Ok(Type::Float.into()),
                     _ => Err("binop error".into()),
@@ -60,7 +60,7 @@ impl RcExpr {
                 let ret = body.infer_type(&env)?;
                 Ok(Type::Fn(param_types, ret).into())
             }
-            Expr::Call { func, args } => match func.infer_type(env)?.inner.as_ref() {
+            Expr::Call { func, args } => match func.infer_type(env)?.as_ref() {
                 Type::Fn(param_types, ret) => {
                     if param_types.len() != args.len() {
                         return Err("arg len mismatch".into());
@@ -129,12 +129,12 @@ fn bind_multiple_types(patterns: &[RcPattern], types: &[RcType]) -> Result<Env, 
     Ok(env)
 }
 
-impl RcPattern {
+impl Pattern {
     fn bind_type(&self, typ: &RcType) -> Result<Env, String> {
-        match self.inner.as_ref() {
+        match self {
             Pattern::Wildcard => Ok(Env::new()),
             Pattern::Binder(name) => Ok(Env::unit(name.clone(), typ.clone())),
-            Pattern::Literal(lit) => match (lit, typ.inner.as_ref()) {
+            Pattern::Literal(lit) => match (lit, typ.as_ref()) {
                 (Literal::Int(_), Type::Int) => Ok(Env::new()),
                 (Literal::Float(_), Type::Float) => Ok(Env::new()),
                 _ => Err("failed to bind to literal".into()),
@@ -143,7 +143,7 @@ impl RcPattern {
                 ann_type.subtype(ann_type)?;
                 pat.bind_type(ann_type)
             }
-            Pattern::Tuple(pats) => match typ.inner.as_ref() {
+            Pattern::Tuple(pats) => match typ.as_ref() {
                 Type::Tuple(types) => bind_multiple_types(pats, &types),
                 _ => Err("can't bind non-tuple to tuple".into()),
             },
@@ -151,7 +151,7 @@ impl RcPattern {
     }
 
     fn get_annotated_type(&self) -> Option<RcType> {
-        match self.inner.as_ref() {
+        match self {
             Pattern::Wildcard => None,
             Pattern::Binder(_) => None,
             Pattern::Literal(lit) => match lit {

@@ -58,9 +58,9 @@ fn do_bop(bop: &Bop, v1: Value, v2: Value) -> Result<Value, String> {
     }
 }
 
-impl RcExpr {
+impl Expr {
     pub fn eval(&self, env: &Env) -> Result<Value, String> {
-        let val = match self.inner.as_ref() {
+        let val = match self {
             Expr::Var(name) => match env.get(name) {
                 None => return Err("no var".into()),
                 Some(val) => val.clone(),
@@ -154,9 +154,9 @@ fn bind_multiple_values(patterns: &[RcPattern], values: &[Value]) -> Result<Env,
     Ok(env)
 }
 
-impl RcPattern {
+impl Pattern {
     fn bind_value(&self, val: &Value) -> Result<Env, String> {
-        match self.inner.as_ref() {
+        match self {
             Pattern::Wildcard => Ok(Env::new()),
             Pattern::Annotated(pat, _typ) => pat.bind_value(val),
             Pattern::Literal(lit) => match (lit, val) {

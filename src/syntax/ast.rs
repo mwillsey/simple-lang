@@ -2,7 +2,11 @@ use std::rc::Rc;
 
 use im::HashSet as Set;
 
-#[derive(Debug, Clone, PartialEq)]
+pub type RcType = Rc<Type>;
+pub type RcPattern = Rc<Pattern>;
+pub type RcExpr = Rc<Expr>;
+
+#[derive(Debug, PartialEq)]
 pub enum Type {
     Int,
     Float,
@@ -11,20 +15,6 @@ pub enum Type {
 }
 
 pub type Name = Rc<str>;
-
-/// Reference counted types
-#[derive(Debug, Clone, PartialEq)]
-pub struct RcType {
-    pub inner: Rc<Type>,
-}
-
-impl From<Type> for RcType {
-    fn from(src: Type) -> RcType {
-        RcType {
-            inner: Rc::new(src),
-        }
-    }
-}
 
 /// Literal values
 #[derive(Debug, Clone, PartialEq)]
@@ -35,7 +25,7 @@ pub enum Literal {
 
 /// Patterns
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Pattern {
     Wildcard,
     Annotated(RcPattern, RcType),
@@ -44,19 +34,6 @@ pub enum Pattern {
     Tuple(Vec<RcPattern>),
     // Record(Vec<(String, RcPattern)>),
     // Tag(String, RcPattern),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct RcPattern {
-    pub inner: Rc<Pattern>,
-}
-
-impl From<Pattern> for RcPattern {
-    fn from(src: Pattern) -> RcPattern {
-        RcPattern {
-            inner: Rc::new(src),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -69,7 +46,7 @@ pub enum Bop {
 
 /// Expressions
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Expr {
     Var(Name),
     // Ann(RcExpr, RcType), // Annotated expressions
@@ -102,27 +79,15 @@ pub enum Stmt {
     Let { pat: RcPattern, expr: RcExpr },
 }
 
-/// Reference counted expressions
-#[derive(Debug, Clone, PartialEq)]
-pub struct RcExpr {
-    pub inner: Rc<Expr>,
-}
+/// Expressions
 
-impl From<Expr> for RcExpr {
-    fn from(src: Expr) -> RcExpr {
-        RcExpr {
-            inner: Rc::new(src),
-        }
-    }
-}
-
-impl RcExpr {
+impl Expr {
     pub fn free_vars(&self) -> Set<Name> {
         self.free_vars_not_bound(&Set::new())
     }
 
     fn free_vars_not_bound(&self, bound: &Set<Name>) -> Set<Name> {
-        match self.inner.as_ref() {
+        match self {
             Expr::Var(name) => {
                 if !bound.contains(name) {
                     Set::unit(name.clone())
@@ -173,9 +138,9 @@ impl Stmt {
     }
 }
 
-impl RcPattern {
+impl Pattern {
     fn add_bound_vars(&self, bound: &mut Set<Name>) {
-        match self.inner.as_ref() {
+        match self {
             Pattern::Wildcard => (),
             Pattern::Annotated(pat, _typ) => pat.add_bound_vars(bound),
             Pattern::Literal(_) => (),
