@@ -79,9 +79,33 @@ impl RcExpr {
                 }
                 Ok(Type::Tuple(types).into())
             }
-            Expr::Match { .. } => unimplemented!(),
-            Expr::Left { .. } => unimplemented!(),
-            Expr::Right { .. } => unimplemented!(),
+            Expr::Match { expr: e, left: (p1, e1), right: (p2, e2) } => {
+                let t = e.infer_type(&env)?;
+                match t.inner.as_ref() {
+                    Type::Either(t1, t2) => { 
+                        let env1 = env + &(p1.bind_type(&t1)?);
+                        let out = e1.infer_type(&env1)?;
+                        let env2 = env + &(p2.bind_type(&t2)?);
+                        e2.check_type(&env2, &out)?;
+                        Ok(out)
+                    },
+                    _ => Err("the type is not Either".into())
+                }
+            },
+            Expr::Left { expr: e, typ: (l, v) } => {
+                let t = e.infer_type(&env)?;
+                match t {
+                    l => Ok(Type::Either(l.clone(), v.clone()).into()),
+                    _ => Err("the type is not the same".into())
+                }
+            }
+            Expr::Right { expr: e, typ: (r, v) } => {
+                let t = e.infer_type(&env)?;
+                match t {
+                    r => Ok(Type::Either(r.clone(), v.clone()).into()),
+                    _ => Err("the type is not the same".into())
+                }
+            }
         }
     }
 }
