@@ -109,6 +109,8 @@ impl Expr {
                 }
                 Value::Tuple(vals)
             }
+            Expr::Struct { .. } => unimplemented!(),
+            Expr::FieldAccess { .. } => unimplemented!(),
         };
 
         Ok(val)

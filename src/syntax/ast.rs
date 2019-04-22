@@ -1,10 +1,11 @@
 use std::rc::Rc;
 
-use im::HashSet as Set;
+use im::{HashMap as Map, HashSet as Set};
 
 pub type RcType = Rc<Type>;
 pub type RcPattern = Rc<Pattern>;
 pub type RcExpr = Rc<Expr>;
+pub type RcDecl = Rc<Decl>;
 
 #[derive(Debug, PartialEq)]
 pub enum Type {
@@ -12,6 +13,7 @@ pub enum Type {
     Float,
     Tuple(Vec<RcType>),
     Fn(Vec<RcType>, RcType),
+    Named(Name),
 }
 
 pub type Name = Rc<str>;
@@ -66,15 +68,23 @@ pub enum Expr {
         args: Vec<RcExpr>,
     },
     Tuple(Vec<RcExpr>),
+    Struct {
+        name: Name,
+        fields: Map<Name, RcExpr>,
+    },
+    FieldAccess {
+        expr: RcExpr,
+        name: Name,
+    },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Block {
     pub stmts: Vec<Stmt>,
     pub expr: RcExpr,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Stmt {
     Let { pat: RcPattern, expr: RcExpr },
 }
@@ -114,6 +124,10 @@ impl Expr {
             }
             Expr::Block(block) => block.free_vars_not_bound(bound),
             Expr::Tuple(exprs) => Set::unions(exprs.iter().map(|e| e.free_vars_not_bound(bound))),
+            Expr::Struct { name: _, fields } => {
+                Set::unions(fields.values().map(|e| e.free_vars_not_bound(bound)))
+            }
+            Expr::FieldAccess { expr, name: _ } => expr.free_vars_not_bound(bound),
         }
     }
 }
@@ -154,6 +168,38 @@ impl Pattern {
             }
         }
     }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Decl {
+    Struct(Struct),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Struct {
+    pub name: Name,
+    pub fields: Map<Name, RcType>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Program {
+    pub decls: Vec<Decl>,
+}
+
+impl Program {
+    pub fn get_struct(&self, name: &str) -> Result<Struct, String> {
+        for d in &self.decls {
+            match d {
+                Decl::Struct(s) if s.name.as_ref() == name => return Ok(s.clone()),
+                _ => (),
+            }
+        }
+        Err("struct not found".into())
+    }
+}
+
+pub fn name(s: &'static str) -> Name {
+    s.into()
 }
 
 pub fn var(s: &'static str) -> RcExpr {

@@ -64,6 +64,11 @@ ExprN: RcExpr = {
     Literal => Expr::Literal(<>).into(),
     Tuple<Expr> => Expr::Tuple(<>).into(),
     <Block> => Expr::Block(<>).into(),
+    <expr: ExprN> "." <name: Name> => Expr::FieldAccess {<>}.into(),
+    <name: Name> "{" <fields: Comma<StructArm<Expr>>> "}" => {
+        let fields = fields.into_iter().collect();
+        Expr::Struct {name, fields}.into()
+    }
 }
 
 Comma<T>: Vec<T> = {
@@ -103,7 +108,7 @@ pub Type: RcType = {
         let ret = ret.unwrap_or_else(|| Type::Tuple(vec![]).into());
         Type::Fn(args, ret).into()
     },
-    // <Name> => Type::Variable(<>),
+    <Name> => Type::Named(<>).into(),
 }
 
 pub Pattern: RcPattern = {
@@ -117,20 +122,35 @@ pub Pattern: RcPattern = {
 
 pub Stmt: Stmt = {
     "let" <pat:Pattern> "=" <expr:Expr> ";" => Stmt::Let {<>},
-    // <Decl> => Stmt::Decl(<>),
 }
 
-// pub Decl: Decl = {
-//     "fn" <name: Variable> "(" <bindings:Comma<Binding>> ")" <ret:("->" <Type>)?>
-//         "{" <body:Block> "}" => {
-//             Decl::Function(Function {
-//                 name,
-//                 bindings,
-//                 body,
-//                 ret: ret.unwrap_or(Type::Unit),
-//             })
-//     }
-// }
+StructArm<T>: (Name, T) = {
+    <Name> ":" <T> => (<>)
+}
+
+Struct: Struct = {
+    "struct" <name: Name> "{" <fields: Comma<StructArm<Type>>> "}" => {
+        let fields = fields.into_iter().collect();
+        Struct {name, fields}
+    }
+}
+
+pub Decl: Decl = {
+    <Struct> => Decl::Struct(<>)
+    // "fn" <name: Variable> "(" <bindings:Comma<Binding>> ")" <ret:("->" <Type>)?>
+    //     "{" <body:Block> "}" => {
+    //         Decl::Function(Function {
+    //             name,
+    //             bindings,
+    //             body,
+    //             ret: ret.unwrap_or(Type::Unit),
+    //         })
+    // }
+}
+
+pub Program: Program = {
+    <decls: (<Decl>)*> => Program {<>}
+}
 
 pub Block: Block = {
     "{" <stmts:Stmt*> <expr:Expr?> "}" => {

@@ -37,8 +37,19 @@ macro_rules! typ {
     };
 }
 
+pub fn parse_program(s: &str) -> Result<Program, ParseError> {
+    ProgramParser::new().parse(s)
+}
+
 #[cfg(test)]
-pub(crate) use {expr, pattern, typ};
+macro_rules! program {
+    ($($prog:tt)*) => {
+        crate::syntax::grammar::parse_program(&stringify!($($prog)*)).unwrap()
+    };
+}
+
+#[cfg(test)]
+pub(crate) use {expr, pattern, program, typ};
 
 #[cfg(test)]
 mod tests {
@@ -101,5 +112,29 @@ mod tests {
 
         assert_eq!(expr!((x)), var("x"));
         assert_eq!(expr!((x,)), Tuple(vec![var("x")]).into());
+    }
+
+    #[test]
+    fn parse_program() {
+        assert_eq!(
+            program! {
+                struct Foo {
+                    x: Int,
+                    y: Float,
+                }
+            },
+            Program {
+                decls: vec![Decl::Struct(Struct {
+                    name: name("Foo"),
+                    fields: [
+                        (name("x"), Type::Int.into()),
+                        (name("y"), Type::Float.into()),
+                    ]
+                    .iter()
+                    .cloned()
+                    .collect()
+                })]
+            }
+        );
     }
 }
